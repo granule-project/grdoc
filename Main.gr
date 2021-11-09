@@ -1,0 +1,24 @@
+import List
+import File
+
+data Entry = Entry
+  String -- id
+  String -- type signature
+  String -- documentation
+
+parse : String -> List Entry
+parse = parse
+
+entriesToHTML : List Entry -> String
+entriesToHTML = entriesToHTML
+
+-- Entry point
+main : () <{Stdin, Open, IOExcept, Read, Write, Close}>
+main =
+  let
+   fileName <- fromStdin;
+   [fileName] <- pure (moveString fileName);
+   fileData <- readFile fileName;
+   entries  <- pure (parse fileData)
+  in
+   writeFile (fileName `stringAppend` ".html") (entriesToHTML entries)
