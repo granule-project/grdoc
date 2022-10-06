@@ -1,10 +1,24 @@
-import List
 import File
+import GrParsec
 
 data Entry = Entry
   String -- id
   String -- type signature
   String -- documentation
+
+commentStart : Parser ()
+commentStart = char ['-'] `andThen` [\c -> let () = drop @Char c in return ()]
+
+str : Parser String
+str = (many [mkMoveable anyChar])
+  `andThen` [\xs -> return (toString xs)]
+
+comment : Parser String
+comment =
+            (char ['-'])
+  `andThen` [\c -> let () = drop @Char c in (char ['-'])
+  `andThen` [\c -> let () = drop @Char c in (many [mkMoveable anyChar])
+  `andThen` [\xs -> return (toString xs)]]]
 
 parse : String -> List Entry
 parse = parse

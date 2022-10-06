@@ -8,21 +8,58 @@ import List
 -- Defines a type like `StateT []` from Haskell
 data Parser a = Parser (String -> List (a, String))
 
+runParser : forall {a : Type} . Parser a -> (String -> List (a, String))
+runParser (Parser p) = p
+
 -- List concat
 concat : forall {a : Type} . List (List a) -> List a
 concat Empty = Empty;
 concat (Next xs xss) = append_list xs (concat xss)
 
+toString : List Char -> String
+toString Empty = "";
+toString (Next x xs) = stringCons x (toString xs)
+
 -- Monadic bind for the Parser monad
 andThen : forall {a : Type, b : Type} .
-          (a -> Parser b) [] -> Parser a -> Parser b
-andThen [f] (Parser p) = Parser (\s ->
+          Parser a -> (a -> Parser b) [] -> Parser b
+andThen (Parser p) [f] = Parser (\s ->
  concat (lmap [\(a, s') -> let Parser p' = f a in p' s'] (p s)))
 
 return : forall {a : Type} . a -> Parser a
 return x = Parser (\s -> Next (x, s) Empty)
 
+-- ## Combinators
+
+alt : forall {a : Type} . (Parser a) [0..1] -> (Parser a) [0..1] -> Parser a
+alt [p1] [p2] = Parser (\s -> let [s'] : String [] = moveString s in 
+  case runParser p1 s' of
+    Empty -> runParser p2 s';
+    x      -> x)
+
+many : forall {a : Type} . (Parser (a [])) [] -> Parser (List a)
+many [p] = alt [many1 [p]] [return Empty]
+
+many1 : forall {a : Type} . (Parser (a [])) [] -> Parser (List a)
+many1 [p] =
+  p `andThen` [\x ->
+    let [x'] : (a []) = x
+    in  many [p] `andThen` [\xs -> return (Next x' xs)]]
+
+
+mkMoveable : Parser Char -> Parser (Char [])
+mkMoveable p = p `andThen` [\x -> return (moveChar x)]
+
 -- ## Simple primitive parsers
+
+-- ### Parsers a particular character
+anyChar : Parser Char
+anyChar =
+  Parser (\s ->
+    case stringUncons s of
+      None           -> Empty;
+      Some (c, rest) -> Next (c, rest) Empty)
+
 char : Char [0..2] -> Parser Char
 char [c] =
  Parser (\s ->
