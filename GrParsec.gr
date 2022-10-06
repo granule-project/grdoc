@@ -5,16 +5,19 @@ import List
 -- # A mini parsec like library for Granule
 
 -- ## Parser monad
+-- Defines a type like `StateT []` from Haskell
 data Parser a = Parser (String -> List (a, String))
 
+-- List concat
 concat : forall {a : Type} . List (List a) -> List a
-concat Nil = Nil;
+concat Empty = Empty;
 concat (Next xs xss) = append_list xs (concat xss)
 
+-- Monadic bind for the Parser monad
 andThen : forall {a : Type, b : Type} .
-          (a -> Parser b) -> Parser a -> Parser b
-andThen f (Parser p) = Parser (\s ->
- concat (lmap (\(a, s') -> let Parser p' = f a in p' s')) (p s))
+          (a -> Parser b) [] -> Parser a -> Parser b
+andThen [f] (Parser p) = Parser (\s ->
+ concat (lmap [\(a, s') -> let Parser p' = f a in p' s'] (p s)))
 
 return : forall {a : Type} . a -> Parser a
 return x = Parser (\s -> Next (x, s) Empty)
