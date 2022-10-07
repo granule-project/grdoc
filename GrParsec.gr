@@ -1,12 +1,18 @@
 module GrParsec where
 
 import List
+import Either
 
 -- # A mini parsec like library for Granule
 
+data ParserError = GenericError String
+
 -- ## Parser monad
 -- Defines a type like `StateT []` from Haskell
-data Parser a = Parser (String -> List (a, String))
+data Parser a = Parser (String -> Either ParserError (a, String))
+
+runParser : forall {a : Type} . Parser a -> (String -> Either ParserError (a, String))
+runParser (Parser p) = p
 
 -- List concat
 concat : forall {a : Type} . List (List a) -> List a
@@ -15,20 +21,54 @@ concat (Next xs xss) = append_list xs (concat xss)
 
 -- Monadic bind for the Parser monad
 andThen : forall {a : Type, b : Type} .
-          (a -> Parser b) [] -> Parser a -> Parser b
-andThen [f] (Parser p) = Parser (\s ->
- concat (lmap [\(a, s') -> let Parser p' = f a in p' s'] (p s)))
+          Parser a -> (a -> Parser b) [] -> Parser b
+andThen (Parser p) [f] = Parser (\s ->
+  case p s of
+    Left error -> Left error;
+    Right (a, s') -> let Parser p' = f a in p' s')
 
 return : forall {a : Type} . a -> Parser a
-return x = Parser (\s -> Next (x, s) Empty)
+return x = Parser (\s -> Right (x, s))
 
--- ## Simple primitive parsers
-char : Char [0..2] -> Parser Char
-char [c] =
- Parser (\s ->
-  case stringUncons s of
-   None -> Empty;
-   Some (c', rest) ->
-     if charToInt c == charToInt c'
-      then Next (c, rest) Empty
-      else let () = drop @String rest in Empty)
+alt : forall {a : Type} . Parser a -> (Parser a) [0..1] -> Parser a
+alt p1 [p2] = Parser (\s -> let [s'] : String [] = moveString s in 
+  case runParser p1 s' of
+    Left err -> let () = drop @ParserError err in runParser p2 s';
+    x        -> x)
+
+many : forall {a : Type} . (Parser (a [])) [] -> Parser (List a)
+many [p] = alt (many1 [p]) [return Empty]
+
+many1 : forall {a : Type} . (Parser (a [])) [] -> Parser (List a)
+many1 [p] =
+  p `andThen` [\x ->
+    let [x'] : (a []) = x
+    in many [p] `andThen` [\xs -> return (Next x' xs)]]
+
+mkMoveable : Parser Char -> Parser (Char [])
+mkMoveable p = p `andThen` [\x -> return (moveChar x)]
+
+anyChar : Parser Char
+anyChar = 
+  Parser (\s ->
+    case stringUncons s of
+      None -> Left (GenericError "Empty");
+      Some (c, rest) -> Right (c, rest))
+
+main : Either ParserError (List Char, String)
+main = runParser (many [mkMoveable anyChar]) "Hello"
+
+simply : Int -> Int
+simply 0 = 0;
+simply n = simply (n - 1)
+
+-- -- ## Simple primitive parsers
+-- char : Char [0..2] -> Parser Char
+-- char [c] =
+--  Parser (\s ->
+--   case stringUncons s of
+--    None -> Empty;
+--    Some (c', rest) ->
+--      if charToInt c == charToInt c'
+--       then Next (c, rest) Empty
+--       else let () = drop @String rest in Empty)
