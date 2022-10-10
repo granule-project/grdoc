@@ -11,14 +11,10 @@ data Parser a = Parser (String -> List (a, String))
 runParser : forall {a : Type} . Parser a -> (String -> List (a, String))
 runParser (Parser p) = p
 
--- List concat
+-- List concat (used in the monad definition below)
 concat : forall {a : Type} . List (List a) -> List a
 concat Empty = Empty;
 concat (Next xs xss) = append_list xs (concat xss)
-
-toString : List Char -> String
-toString Empty = "";
-toString (Next x xs) = stringCons x (toString xs)
 
 -- Monadic bind for the Parser monad
 andThen : forall {a : Type, b : Type} .
@@ -31,28 +27,32 @@ return x = Parser (\s -> Next (x, s) Empty)
 
 -- ## Combinators
 
-alt : forall {a : Type} . (Parser a) [0..1] -> (Parser a) [0..1] -> Parser a
-alt [p1] [p2] = Parser (\s -> let [s'] : String [] = moveString s in 
+-- Choice between two parsers (not the second may not get used)
+alt : forall {a : Type} . Parser a -> (Parser a) [0..1] -> Parser a
+alt p1 [p2] = Parser (\s -> let [s'] : String [] = moveString s in
   case runParser p1 s' of
     Empty -> runParser p2 s';
     x      -> x)
 
+-- Apply a repeatable parser many times (note the result of the
+-- parameter parser must be something that can be used arbitrarily)
 many : forall {a : Type} . (Parser (a [])) [] -> Parser (List a)
-many [p] = alt [many1 [p]] [return Empty]
+many [p] = alt (many1 [p]) [return Empty]
 
+-- Apply a repeatable parser one or more times
 many1 : forall {a : Type} . (Parser (a [])) [] -> Parser (List a)
 many1 [p] =
   p `andThen` [\x ->
     let [x'] : (a []) = x
     in  many [p] `andThen` [\xs -> return (Next x' xs)]]
 
-
+-- Makes a character parser into one whose results are unrestricted
 mkMoveable : Parser Char -> Parser (Char [])
 mkMoveable p = p `andThen` [\x -> return (moveChar x)]
 
 -- ## Simple primitive parsers
 
--- ### Parsers a particular character
+-- Parses any character
 anyChar : Parser Char
 anyChar =
   Parser (\s ->
@@ -60,6 +60,7 @@ anyChar =
       None           -> Empty;
       Some (c, rest) -> Next (c, rest) Empty)
 
+-- Parses a particular character
 char : Char [0..2] -> Parser Char
 char [c] =
  Parser (\s ->

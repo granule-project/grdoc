@@ -6,19 +6,22 @@ data Entry = Entry
   String -- type signature
   String -- documentation
 
-commentStart : Parser ()
-commentStart = char ['-'] `andThen` [\c -> let () = drop @Char c in return ()]
+-- Conver a list of characters into a primitive string
+toString : List Char -> String
+toString Empty = "";
+toString (Next x xs) = stringCons x (toString xs)
 
+-- Parsers any sequence into a string
 str : Parser String
 str = (many [mkMoveable anyChar])
   `andThen` [\xs -> return (toString xs)]
 
+-- Parse Granule comments
 comment : Parser String
 comment =
             (char ['-'])
   `andThen` [\c -> let () = drop @Char c in (char ['-'])
-  `andThen` [\c -> let () = drop @Char c in (many [mkMoveable anyChar])
-  `andThen` [\xs -> return (toString xs)]]]
+  `andThen` [\c -> let () = drop @Char c in str]]
 
 parse : String -> List Entry
 parse = parse
